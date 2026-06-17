@@ -1,4 +1,5 @@
 from flask import Flask, render_template_string, request, session, redirect, url_for
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = 'panaderia_sanjuan_premium_upn'
@@ -8,13 +9,12 @@ app.secret_key = 'panaderia_sanjuan_premium_upn'
 # =========================================================================
 productos = [
     {"id": 1, "nombre": "Pan Francés", "descripcion": "Tradicional y crujiente.", "precio": 0.20, "imagen": "https://images.unsplash.com/photo-1586444248902-2f64eddc13df?q=80&w=400"},
-    {"id": 2, "nombre": "Pan Chabata", "descripcion": "Pan artesanal rústico.", "precio": 0.30, "imagen": "https://www.panaderiaalemana.com/wp-content/uploads/2020/11/Pan-ciabatta.jpg"},
+    {"id": 2, "nombre": "Pan Chabata", "descripcion": "Pan artesanal rústico.", "precio": 0.30, "imagen": "https://www.atavolaregaz.it/es/recetas/pan-ciabatta/images/16x9/image_r100.jpg"},
     {"id": 3, "nombre": "Pan de Molde", "descripcion": "Suave y para sándwich.", "precio": 7.50, "imagen": "https://images.unsplash.com/photo-1598373182133-52452f7691ef?q=80&w=400"},
     {"id": 4, "nombre": "Torta de Chocolate", "descripcion": "Cacao puro nacional.", "precio": 40.00, "imagen": "https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=400"},
     {"id": 5, "nombre": "Cachito Mantequilla", "descripcion": "Suave y tradicional.", "precio": 0.50, "imagen": "https://images.unsplash.com/photo-1555507036-ab1f4038808a?q=80&w=400"},
     {"id": 6, "nombre": "Pan Baguette", "descripcion": "Largo y muy crocante.", "precio": 3.00, "imagen": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR9SwWuaLPjSZbZR5ouyneVKiCxXvpfymLuEw&s"},
-    {"id": 7, "nombre": "Empanada Carne", "descripcion": "Relleno clásico criollo.", "precio": 5.00, "imagen": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR3AL1iExIyFoi3WvX3n6UzihA6QNU9aY5bUg&s"},
-    {"id": 8, "nombre": "Torta Helada", "descripcion": "Bizcocho con gelatina.", "precio": 30.00, "imagen": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQpJwuvsuCh-r63wUnZBMlU4Twbft-DMqZ1bg&s"}
+    {"id": 7, "nombre": "Empanada Carne", "descripcion": "Relleno clásico criollo.", "precio": 5.00, "imagen": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR3AL1iExIyFoi3WvX3n6UzihA6QNU9aY5bUg&s"}
 ]
 
 servicios = [
@@ -25,6 +25,9 @@ servicios = [
 clientes = [
     {"id": 1, "nombre": "Santi Mendoza", "email": "santi.mendoza@email.com", "telefono": "987654321"}
 ]
+
+# Inicialización limpia en 0 para el flujo dinámico del negocio
+ventas_totales_acumuladas = 0.0
 
 ADMIN_USER = "admin"
 ADMIN_PASS = "admin123"
@@ -150,7 +153,6 @@ HTML_PLANTILLA = """<!DOCTYPE html>
 
                 <div style="background: #252525; padding: 20px; border-radius: 6px; margin-top: 20px;">
                     <h3><i class="fa-solid fa-user-check"></i> Completa tus Datos para Confirmar la Orden</h3>
-                    <p style="color: #aaa; font-size: 0.9rem;">Al completar este paso, tus datos se guardarán de forma automática en el sistema de clientes de la panadería.</p>
                     <form action="/procesar_compra_cliente" method="POST">
                         <label>Tu Nombre y Apellido:</label>
                         <input type="text" name="cliente_nombre" required placeholder="Ej. Carlos Mendoza">
@@ -227,88 +229,241 @@ HTML_PLANTILLA = """<!DOCTYPE html>
 </html>"""
 
 # =========================================================================
-# 3. DASHBOARD DEL ADMINISTRADOR CON OPCIÓN COMPLETA DE ELIMINAR (CRUD)
+# 3. DASHBOARD DEL ADMINISTRADOR CON CONTROLADORES DE RENDIMIENTO DINÁMICOS
 # =========================================================================
 @app.route("/admin/dashboard")
 def dashboard_admin():
     if 'usuario' not in session: return redirect(url_for('index', view='admin'))
     
+    # KPIs basados en lo que realmente hay en la base de datos local
+    total_productos = len(productos)
+    precio_promedio = sum([p['precio'] for p in productos]) / total_productos if total_productos > 0 else 0
+    total_clientes = len(clientes)
+    
+    ahora_string = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
     html_dashboard = """<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>Panel de Administración - Analítico</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #121212; color: #e0e0e0; margin: 40px; }
-        .box { background: #1e1e1e; padding: 25px; border-radius: 8px; max-width: 1100px; margin: 0 auto; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        h2 { color: #fff; border-bottom: 2px solid #634832; padding-bottom: 8px; margin-top: 30px;}
-        .grid-formularios { display: flex; gap: 20px; margin-bottom: 30px; flex-wrap: wrap; }
-        .tarjeta-form { background: #252525; padding: 20px; border-radius: 6px; flex: 1; min-width: 280px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 20px; }
-        th { background: #634832; color: white; padding: 10px; text-align: left; }
-        td { padding: 10px; border-bottom: 1px solid #2d2d2d; }
-        label { font-weight: bold; display: block; margin-top: 10px; color: #ccc; }
-        input[type="text"], input[type="number"], textarea { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #444; background-color: #1a1a1a; color: #fff; border-radius: 4px; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background-color: #f4f6f9; color: #333; margin: 0; padding: 20px; }
+        .contenedor-principal { max-width: 1200px; margin: 0 auto; }
+        
+        .header-dashboard { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .titulo-dashboard { font-size: 1.8rem; font-weight: bold; color: #222; margin: 0; }
+        
+        .grid-kpis { display: flex; gap: 20px; margin-bottom: 30px; flex-wrap: wrap; }
+        .tarjeta-kpi { background: #ffffff; padding: 20px; border-radius: 10px; flex: 1; min-width: 220px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #eef2f5; }
+        .tarjeta-kpi .label { font-size: 0.85rem; font-weight: bold; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px; }
+        .tarjeta-kpi .valor { font-size: 2.2rem; font-weight: bold; color: #2c3e50; margin: 10px 0 5px 0; }
+        .tarjeta-kpi .subtext { font-size: 0.8rem; color: #95a5a6; }
+
+        .grid-graficos { display: flex; gap: 20px; margin-bottom: 30px; flex-wrap: wrap; }
+        .tarjeta-grafico { background: #ffffff; padding: 20px; border-radius: 10px; flex: 1; min-width: 450px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #eef2f5; }
+        .tarjeta-grafico h3 { margin-top: 0; margin-bottom: 15px; font-size: 1.1rem; color: #2c3e50; }
+        .contenedor-canvas { position: relative; height: 260px; width: 100%; }
+
+        .seccion-blanca { background: #ffffff; padding: 25px; border-radius: 10px; margin-bottom: 25px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #eef2f5; }
+        .seccion-blanca h2 { color: #2c3e50; border-bottom: 2px solid #634832; padding-bottom: 8px; margin-top: 0; font-size: 1.4rem; }
+        .grid-formularios { display: flex; gap: 20px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tarjeta-form { background: #f8f9fa; padding: 20px; border-radius: 8px; flex: 1; min-width: 280px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th { background: #634832; color: white; padding: 12px; text-align: left; }
+        td { padding: 12px; border-bottom: 1px solid #edf2f7; color: #4a5568; }
+        
+        label { font-weight: bold; display: block; margin-top: 10px; color: #4a5568; font-size: 0.9rem; }
+        input[type="text"], input[type="number"], textarea { width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #cbd5e0; background-color: #fff; color: #333; border-radius: 4px; box-sizing: border-box; }
+        
         .btn-add { background-color: #28a745; color: white; border: none; padding: 10px; margin-top: 15px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; }
-        .btn-danger { background: #dc3545; color: white; padding: 5px 10px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
-        .btn-back { background: #4a3625; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold; }
+        .btn-danger { background: #dc3545; color: white; padding: 6px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
+        .btn-back { background: #634832; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block; }
+        .timestamp { text-align: right; font-size: 0.8rem; color: #a0aec0; margin-top: -10px; margin-bottom: 20px; }
     </style>
     </head><body>
-    <div class="box">
-        <a href="/" class="btn-back"><i class="fa-solid fa-arrow-left"></i> Volver al Portal Principal</a>
+    <div class="contenedor-principal">
         
-        <h2 style="margin-top:20px;">Agregar Nuevo Contenido</h2>
-        <div class="grid-formularios">
-            <div class="tarjeta-form">
-                <h3><i class="fa-solid fa-box"></i> Nuevo Producto</h3>
-                <form action="/admin/productos/agregar" method="POST">
-                    <label>Nombre:</label><input type="text" name="nombre" required>
-                    <label>Descripción:</label><textarea name="descripcion" rows="1" required></textarea>
-                    <label>Precio (S/.):</label><input type="number" step="0.01" name="precio" required>
-                    <label>URL Imagen:</label><input type="text" name="imagen" value="https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=400">
-                    <button type="submit" class="btn-add">Agregar Catálogo</button>
-                </form>
-            </div>
-            <div class="tarjeta-form">
-                <h3><i class="fa-solid fa-bell"></i> Nuevo Servicio</h3>
-                <form action="/admin/servicios/agregar" method="POST">
-                    <label>Nombre:</label><input type="text" name="nombre" required>
-                    <label>Descripción:</label><textarea name="descripcion" rows="1" required></textarea>
-                    <label>Precio Base (S/.):</label><input type="number" step="0.01" name="precio" required>
-                    <button type="submit" class="btn-add">Agregar Servicio</button>
-                </form>
-            </div>
+        <div class="header-dashboard">
+            <h1 class="titulo-dashboard">Panel de Administración</h1>
+            <a href="/" class="btn-back"><i class="fa-solid fa-arrow-left"></i> Volver al Portal Principal</a>
         </div>
+        <div class="timestamp">Última actualización: {{ fecha_actual }}</div>
+        
+        <section class="grid-kpis">
+            <div class="tarjeta-kpi">
+                <div class="label">Productos</div>
+                <div class="valor" id="kpi-productos">{{ total_p }}</div>
+                <div class="subtext">Sincronizado con catálogo</div>
+            </div>
+            <div class="tarjeta-kpi">
+                <div class="label">Precio Promedio</div>
+                <div class="valor">S/ {{ "%.2f"|format(precio_prom) }}</div>
+                <div class="subtext">Meta: S/ 5.50</div>
+            </div>
+            <div class="tarjeta-kpi">
+                <div class="label">Clientes</div>
+                <div class="valor">{{ total_c }}</div>
+                <div class="subtext">Objetivo: 50</div>
+            </div>
+            <div class="tarjeta-kpi">
+                <div class="label">Ventas del Mes</div>
+                <div class="valor" style="color: #28a745;">S/ {{ "%.2f"|format(ventas_v) }}</div>
+                <div class="subtext">Creciendo en tiempo real</div>
+            </div>
+        </section>
 
-        <h2><i class="fa-solid fa-bread-slice"></i> Gestión de Productos</h2>
-        <table>
-            <thead><tr><th>ID</th><th>Nombre</th><th>Precio</th><th>Acción</th></tr></thead>
-            <tbody>
-                {% for p in lista_p %}
-                <tr><td>{{ p.id }}</td><td>{{ p.nombre }}</td><td>S/. {{ "%.2f"|format(p.precio) }}</td><td><a href="/admin/productos/eliminar/{{ p.id }}" class="btn-danger"><i class="fa-solid fa-trash"></i> Eliminar</a></td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <section class="grid-graficos">
+            <div class="tarjeta-grafico">
+                <h3>Ventas últimos 7 días</h3>
+                <div class="contenedor-canvas">
+                    <canvas id="graficoVentasLineas"></canvas>
+                </div>
+            </div>
+            <div class="tarjeta-grafico">
+                <h3>Registros Recientes (Clientes vs Productos)</h3>
+                <div class="contenedor-canvas">
+                    <canvas id="graficoRegistrosBarras"></canvas>
+                </div>
+            </div>
+        </section>
 
-        <h2><i class="fa-solid fa-handshake"></i> Gestión de Servicios</h2>
-        <table>
-            <thead><tr><th>ID</th><th>Nombre</th><th>Precio Base</th><th>Acción</th></tr></thead>
-            <tbody>
-                {% for s in lista_s %}
-                <tr><td>{{ s.id }}</td><td>{{ s.nombre }}</td><td>S/. {{ "%.2f"|format(s.precio) }}</td><td><a href="/admin/servicios/eliminar/{{ s.id }}" class="btn-danger"><i class="fa-solid fa-trash"></i> Eliminar</a></td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <section class="seccion-blanca">
+            <h2>Añadir Nuevo Contenido al Portal</h2>
+            <div class="grid-formularios">
+                <div class="tarjeta-form">
+                    <h3>Nuevo Producto</h3>
+                    <form action="/admin/productos/agregar" method="POST">
+                        <label>Nombre:</label><input type="text" name="nombre" required>
+                        <label>Descripción:</label><textarea name="descripcion" rows="1" required></textarea>
+                        <label>Precio (S/.):</label><input type="number" step="0.01" name="precio" required>
+                        <label>URL Imagen:</label><input type="text" name="imagen" value="https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=400">
+                        <button type="submit" class="btn-add">Agregar Catálogo</button>
+                    </form>
+                </div>
+                <div class="tarjeta-form">
+                    <h3>Nuevo Servicio</h3>
+                    <form action="/admin/servicios/agregar" method="POST">
+                        <label>Nombre:</label><input type="text" name="nombre" required>
+                        <label>Descripción:</label><textarea name="descripcion" rows="1" required></textarea>
+                        <label>Precio Base (S/.):</label><input type="number" step="0.01" name="precio" required>
+                        <button type="submit" class="btn-add">Agregar Servicio</button>
+                    </form>
+                </div>
+            </div>
+        </section>
 
-        <h2><i class="fa-solid fa-users"></i> Tabla de Clientes Registrados Automáticamente</h2>
-        <table>
-            <thead><tr><th>ID</th><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Acción</th></tr></thead>
-            <tbody>
-                {% for c in lista_c %}
-                <tr><td>{{ c.id }}</td><td>{{ c.nombre }}</td><td>{{ c.email }}</td><td>{{ c.telefono }}</td><td><a href="/admin/clientes/eliminar/{{ c.id }}" class="btn-danger">Quitar Registro</a></td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <section class="seccion-blanca">
+            <h2>Gestión de Catálogo de Productos</h2>
+            <table>
+                <thead><tr><th>ID</th><th>Nombre</th><th>Precio</th><th>Acción</th></tr></thead>
+                <tbody>
+                    {% for p in lista_p %}
+                    <tr><td>{{ p.id }}</td><td>{{ p.nombre }}</td><td>S/. {{ "%.2f"|format(p.precio) }}</td><td><a href="/admin/productos/eliminar/{{ p.id }}" class="btn-danger"><i class="fa-solid fa-trash"></i> Eliminar</a></td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="seccion-blanca">
+            <h2>Gestión de Servicios Ofrecidos</h2>
+            <table>
+                <thead><tr><th>ID</th><th>Nombre</th><th>Precio Base</th><th>Acción</th></tr></thead>
+                <tbody>
+                    {% for s in lista_s %}
+                    <tr><td>{{ s.id }}</td><td>{{ s.nombre }}</td><td>S/. {{ "%.2f"|format(s.precio) }}</td><td><a href="/admin/servicios/eliminar/{{ s.id }}" class="btn-danger"><i class="fa-solid fa-trash"></i> Eliminar</a></td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="seccion-blanca">
+            <h2>Tabla de Clientes Registrados Automáticamente</h2>
+            <table>
+                <thead><tr><th>ID</th><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Acción</th></tr></thead>
+                <tbody>
+                    {% for c in lista_c %}
+                    <tr><td>{{ c.id }}</td><td>{{ c.nombre }}</td><td>{{ c.email }}</td><td>{{ c.telefono }}</td><td><a href="/admin/clientes/eliminar/{{ c.id }}" class="btn-danger">Quitar Registro</a></td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
     </div>
-    </body></html>"""
-    return render_template_string(html_dashboard, lista_p=productos, lista_s=servicios, lista_c=clientes)
+
+    <script>
+        const ctxLineas = document.getElementById('graficoVentasLineas').getContext('2d');
+        new Chart(ctxLineas, {
+            type: 'line',
+            data: {
+                labels: ['10/06', '11/06', '12/06', '13/06', '14/06', '15/06', 'Hoy'],
+                datasets: [{
+                    label: 'Ventas (S/)',
+                    // La gráfica se alimenta con el valor real acumulado en su último nodo
+                    data: [0, 0, 0, 0, 0, 0, {{ ventas_v }}],
+                    borderColor: '#2d3748',
+                    backgroundColor: 'rgba(45, 55, 72, 0.05)',
+                    tension: 0.4,
+                    fill: true,
+                    borderWidth: 2,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#e53e3e',
+                    pointRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { min: 0, suggestedMax: 50 }
+                }
+            }
+        });
+
+        const ctxBarras = document.getElementById('graficoRegistrosBarras').getContext('2d');
+        new Chart(ctxBarras, {
+            type: 'bar',
+            data: {
+                labels: ['10/06', '11/06', '12/06', '13/06', '14/06', '15/06', 'Hoy'],
+                datasets: [
+                    {
+                        label: 'Nuevos Clientes',
+                        data: [0, 0, 0, 0, 0, 0, {{ total_c - 1 }}],
+                        backgroundColor: '#d69e2e',
+                        borderRadius: 3
+                    },
+                    {
+                        label: 'Nuevos Productos',
+                        data: [0, 0, 0, 0, 0, 0, {{ total_p }}],
+                        backgroundColor: '#5c4033',
+                        borderRadius: 3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', labels: { boxWidth: 15 } } },
+                scales: {
+                    y: { min: 0, suggestedMax: 5 }
+                }
+            }
+        });
+    </script>
+</body></html>"""
+    
+    return render_template_string(
+        html_dashboard, 
+        total_p=total_productos, 
+        precio_prom=precio_promedio, 
+        total_c=total_clientes, 
+        ventas_v=ventas_totales_acumuladas,
+        lista_p=productos, 
+        lista_s=servicios, 
+        lista_c=clientes,
+        fecha_actual=ahora_string
+    )
 
 # =========================================================================
 # 4. CONTROLADORES POST / ACCIONES Y REDIRECCIONES
@@ -325,6 +480,13 @@ def procesar_compra_cliente():
     email = request.form.get("cliente_email")
     telefono = request.form.get("cliente_telefono")
     
+    global ventas_totales_acumuladas
+    
+    # Suma el monto exacto del pedido simulado del cliente antes de limpiar el carrito
+    if 'historial' in session:
+        monto_carrito = sum([item['subtotal'] for item in session['historial']])
+        ventas_totales_acumuladas += monto_carrito
+
     existe = any(c['email'].lower() == email.lower() for c in clientes)
     if not existe:
         nuevo_id = max([c['id'] for c in clientes]) + 1 if clientes else 1
@@ -400,8 +562,5 @@ def logout():
     session.clear()
     return redirect(url_for('index', view='inicio'))
 
-# =========================================================================
-# 5. CONFIGURACIÓN COMPROBADA ANTI-BLOQUEOS
-# =========================================================================
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=8000, debug=False, use_reloader=False, threaded=True)
