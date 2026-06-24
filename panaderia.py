@@ -9,7 +9,7 @@ app.secret_key = 'panaderia_sanjuan_premium_upn'
 # =========================================================================
 productos = [
     {"id": 1, "nombre": "Pan Francés", "descripcion": "Tradicional y crujiente.", "precio": 0.20, "imagen": "https://images.unsplash.com/photo-1586444248902-2f64eddc13df?q=80&w=400"},
-    {"id": 2, "nombre": "Pan Chabata", "descripcion": "Pan artesanal rústico.", "precio": 0.30, "imagen": "https://www.atavolaregaz.it/es/recetas/pan-ciabatta/images/16x9/image_r100.jpg"},
+    {"id": 2, "nombre": "Pan Chabata", "descripcion": "Pan artesanal rústico.", "precio": 0.30, "imagen": "https://lamorapasteleria.com/cdn/shop/files/52_480x480.png?v=1749270826"},
     {"id": 3, "nombre": "Pan de Molde", "descripcion": "Suave y para sándwich.", "precio": 7.50, "imagen": "https://images.unsplash.com/photo-1598373182133-52452f7691ef?q=80&w=400"},
     {"id": 4, "nombre": "Torta de Chocolate", "descripcion": "Cacao puro nacional.", "precio": 40.00, "imagen": "https://images.unsplash.com/photo-1578985545062-69928b1d9587?q=80&w=400"},
     {"id": 5, "nombre": "Cachito Mantequilla", "descripcion": "Suave y tradicional.", "precio": 0.50, "imagen": "https://images.unsplash.com/photo-1555507036-ab1f4038808a?q=80&w=400"},
